@@ -34,7 +34,6 @@ void loop();
 void flight();
 void PIDx();
 void PIDy();
-void getAccel();
 
 int state = 1; //system state var
 
@@ -336,47 +335,82 @@ void loop() {
 
 void flight(){
 	while (1==1) {
+
+
 		if(state == 1) { // Ground Idle
-			//Wait till suden accel to switch state to 2
-			state = 2;
+      mpu6050.update();
+			if (mpu6050.getAccY()  < -1.6) { //-2.5 Launch -1.6 Test
+        Serial.println("Launch Detected");
+        digitalWrite(B_led, LOW);
+        state = 2;
+      }
 		}
+
+
+
 		if(state == 2) { //Passive assent
-			//Wait till the rocket slows down to detect burnout
-			state = 3;
+			mpu6050.update();
+			if (mpu6050.getAccY() > 0.1) {
+        Serial.println("Burnout detected");
+        digitalWrite(B_led, LOW);
+        state = 3;
+      }
 		}
+
+
 		if(state == 3) { //1st burnout
 			delay(2000);//Time delay untill 2nd engine ignite (pyro1)
-			digitalWrite(pyro1, HIGH);
-			state = 4;//switch state to 4
+      digitalWrite(pyro1, HIGH);
+      delay(2000);
+      digitalWrite(pyro1, LOW);
+      digitalWrite(B_led, HIGH);
+      digitalWrite(G_led, LOW);
+      state = 4;
 		}
+
+
 		if(state == 4) { //Active assent
 			PIDx();//TVCx PID run
 			PIDy();//TVCy PID run
-			//detect slowdown from accel to move to next stage
-			state = 5;
+			if (mpu6050.getAccY() > 0.1) {
+        Serial.println("2nd Burnout detected");
+        state = 5;
+      }
 		}
+
+
 		if(state == 5) { //Main burnout/Appogee
-			//wait till rocket readches low acceleration and starts to turn to nosedive 
 			state = 6;
 		}
+
+
 		if(state == 6) { //Balistic desent
-			delay(3000);//Wait x time then switch states to 7
+			delay(3000);
 			state = 7;
 		}
-		if(state == 7) { //drouge desent
-			digitalWrite(pyro2, HIGH);//Deploy drouge chute on pyro #2
-			delay(2000);
-			digitalWrite(pyro2, LOW);// turn pyro off after chute deploy
 
+
+		if(state == 7) { //drouge desent
+      digitalWrite(pyro2, HIGH);
+      delay(2000);
+      digitalWrite(pyro2, LOW);
 			//Wait untill x meters from launch height then switch states to 8
 		}
+
+
 		if(state == 8) { //main desent
-			digitalWrite(pyro3, HIGH);//deploy main chute (pyro 3)
+			digitalWrite(pyro3, HIGH);
+      digitalWrite(pyro4, HIGH);
 			delay(2000);
-			digitalWrite(pyro3, LOW);//Turn off pyro after chute deploy
-			
-			//wait till accel == 0 then switch to state 9
+			digitalWrite(pyro3, LOW);
+      digitalWrite(pyro4, LOW);
+			if (mpu6050.getAccY() < -9.75) {
+        Serial.println("Touchdown Detected");
+        state = 9;
+      }
 		}
+
+
 		if(state == 9) { //touchdown
 			while(state == 9){
 				digitalWrite(B_led, LOW);
@@ -387,6 +421,8 @@ void flight(){
 				delay(3000);
 			}
 		}
+
+
 		if(state == 10) { //abort
 			//check if rocket is above 5m
 			//if rocket > 5m
@@ -416,15 +452,3 @@ void PIDy(){//pid y
 	//map to pwm
 	//write to servos
 }
-
-
-
-//Other stuff
-
-void getAccel(){
-	mpu6050.update();
-  	accelx = mpu6050.getAccX();
-  	accely = mpu6050.getAccY();
- 	  accelz = mpu6050.getAccZ();
-}
-
